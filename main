@@ -1,0 +1,157 @@
+# projectsmartgreenhouse
+////// lib ///////
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <BH1750FVI.h>
+#include <WiFiManager.h>
+#include <Adafruit_AHTX0.h>
+#include <WiFi.h>
+#include <WiFiClient.h>
+/////// BLYNK //////
+#define BLYNK_PRINT Serial
+#define BLYNK_TEMPLATE_ID "TMPL6mKRc109o"
+#define BLYNK_TEMPLATE_NAME "Kengineer"
+#define BLYNK_AUTH_TOKEN "1w6wzyVo-iZlg0V3vRdfvpo7IYvCanWg"
+char auth[] = "1w6wzyVo-iZlg0V3vRdfvpo7IYvCanWg";
+#include <BlynkSimpleEsp32.h>
+
+
+/////// define section //////
+#define SCREEN_ADDRESS 0x3C
+#define SCREEN_WIDTH 128 
+#define SCREEN_HEIGHT 64 
+#define OLED_RESET -1 
+#define relay1 33
+#define relay2 32
+
+/////active zone /////
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+BH1750FVI LightSensor(BH1750FVI::k_DevModeContLowRes);
+Adafruit_AHTX0 aht;
+WiFiManager wm;
+//// value ////
+uint16_t lux = 0;
+unsigned long period = 1000;
+unsigned long last_time = 0;
+float temperature = 0;
+float humidity = 0;
+int soil_stick1 = 0;
+int soil_stick2 = 0;
+////// blynk controller /////
+BLYNK_WRITE(V0){  
+    if (param.asInt())
+    { 
+        digitalWrite(relay1, 0); 
+    } 
+    else 
+    {
+        digitalWrite(relay1, 1);  
+    }
+}
+BLYNK_WRITE(V4){  
+    if (param.asInt())
+    { 
+        digitalWrite(relay2, 0); 
+    } 
+    else 
+    {
+        digitalWrite(relay2, 1);  
+    }
+}
+void setup() {
+   Serial.begin(9600);
+   //// pin /////
+
+  pinMode(relay1 , OUTPUT);
+  pinMode(relay2 , OUTPUT);
+
+//////////////
+   digitalWrite(relay1, 1); 
+   digitalWrite(relay2, 1); 
+   wm.autoConnect("Smart_warehouse"); 
+   Blynk.config(auth);
+   display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
+   LightSensor.begin(); 
+   aht.begin();
+
+
+   delay(250);
+   display.display();
+   delay(2000);
+   display.clearDisplay();
+}
+
+void loop() {
+     Blynk.run();
+     display.clearDisplay();
+     if( millis() - last_time > period) {
+     last_time = millis();
+     gettemp_humid();
+     soil_mes();
+     getlight();
+     display.display();
+  }
+  //  relay_control();
+}
+void getlight(){
+     lux = LightSensor.GetLightIntensity();
+     display.setTextSize(1);   
+     display.setTextColor(SSD1306_WHITE);
+     display.setCursor(10,5);
+     display.print("light : ");
+     display.setCursor(65,5);
+     display.print(lux);
+          Blynk.virtualWrite(V6,lux);
+ }
+
+void gettemp_humid(){
+       sensors_event_t humidity, temp;
+       aht.getEvent(&humidity, &temp);
+      display.setTextSize(1);   
+     display.setTextColor(SSD1306_WHITE);
+     display.setCursor(10,15);
+    display.print("Temperature: "); display.print(temp.temperature); 
+    display.setCursor(10,25);
+     display.print("Humidity: "); display.print(humidity.relative_humidity); display.println("%");
+     Blynk.virtualWrite(V2, temp.temperature);
+     Blynk.virtualWrite(V3, humidity.relative_humidity);
+}
+void soil_mes(){
+ soil_stick1 = analogRead(34);
+ int soil_1 = map(soil_stick1,1300,2500,100,0);
+ if(soil_1 < 0){
+  soil_1 = 0;
+ }
+ int soil_2 = map(soil_stick2,1300,2900,100,0);
+ soil_stick2 = analogRead(35);
+  if(soil_2 < 0){
+  soil_2 = 0;
+    Blynk.virtualWrite(V1, soil_1);
+    Blynk.virtualWrite(V5, soil_2);
+ }  
+
+  display.setTextSize(1);   
+     display.setTextColor(SSD1306_WHITE);
+     display.setCursor(10,35);
+    display.print("Soil-1: "); display.print(soil_1); display.println("%");
+    display.setCursor(10,45);
+     display.print("Soil-2: "); display.print(soil_2); display.println("%");
+}
+// void check_relay(){
+//     display.setTextSize(1);   
+//     display.setTextColor(SSD1306_WHITE);
+//     display.setCursor(5,55);
+//   if(relay1 == 1){
+//      display.print("relay-1 : "); display.print("off");
+//   }
+//   else if(relay1 == 0){
+//     display.print("relay-1 : "); display.print("on");
+//   }
+
+//   if(relay2 == 1){
+//     display.print(" relay-2 : "); display.print("off");
+//   }else if(relay2 == 0){
+//     display.print(" relay-2 : "); display.print("on");
+//   }
+// }
